@@ -1,6 +1,16 @@
 import cv2
 import numpy as np
 
+def hsv_to_lab(hsv):
+    """
+    hsv: (3,) NumPy array or list, e.g., [H, S, V] with H in [0,179], S,V in [0,255].
+    Returns: (3,) LAB NumPy array.
+    """
+    hsv_reshaped = np.uint8([[hsv]])            # shape (1,1,3)
+    bgr = cv2.cvtColor(hsv_reshaped, cv2.COLOR_HSV2BGR)
+    lab = cv2.cvtColor(bgr, cv2.COLOR_BGR2LAB)
+    return lab[0,0]
+
 def process_cube_face(image_path):
     img = cv2.imread(image_path)
     resized = cv2.resize(img, (480, 640), interpolation=cv2.INTER_AREA)
@@ -65,6 +75,7 @@ def process_cube_face(image_path):
 
     mean_hsv_values = []
     mean_bgr_values = []
+    # mean_lab_values = []
     for contour in sorted_contours:
         mask = np.zeros(resized.shape[:2], dtype=np.uint8)
         cv2.drawContours(mask, [contour], -1, 255, -1)
@@ -72,6 +83,8 @@ def process_cube_face(image_path):
         mean_hsv = cv2.cvtColor(np.uint8([[mean_bgr]]), cv2.COLOR_BGR2HSV)[0][0]
         mean_bgr_values.append(mean_bgr)
         mean_hsv_values.append(mean_hsv)
+        # mean_lab = hsv_to_lab(mean_hsv)
+        # mean_lab_values.append(mean_lab)
 
     # Draw filtered squares on image
     # filtered_contours = [c for c, _ in filtered]
@@ -115,7 +128,7 @@ def classify_stickers(stickers_hsv: np.ndarray) -> str:
 
 
 
-list_of_image_paths = [f"batch{i}.jpg" for i in range(1, 7)]
+list_of_image_paths = [f"Media/batch{i}.jpg" for i in range(1, 7)]
 faces_data = []
 for path in list_of_image_paths:
     face_colors = process_cube_face(path)
