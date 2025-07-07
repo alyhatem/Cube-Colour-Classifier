@@ -17,14 +17,18 @@ class CubeClassifier:
     ], dtype=np.uint8)
 
     face_letters = ['W', 'B', 'R', 'Y', 'G', 'O']
-
+    
     def classify(self, stickers_lab: np.ndarray) -> str:
         """
         stickers_lab: 6x9x3 NumPy array of LAB values.
         Returns: 54-character classification string.
         """
         result = []
-        centers_ab = self.calibrated_centers[:, 1:3]
+
+        # Extract the center LABs dynamically from index 4 of each face
+        centers = stickers_lab[:, 4, :]  # shape (6,3)
+        centers_ab = centers[:, 1:3]     # only A,B components
+
         for face_idx in range(6):
             for sticker_idx in range(9):
                 lab = stickers_lab[face_idx, sticker_idx, :]
@@ -36,13 +40,16 @@ class CubeClassifier:
 
 
 # USAGE
-list_of_image_paths = [f"Media/batch{i}.jpg" for i in range(1, 7)]
+list_of_image_paths = [f"Media/2batch_{i}.jpg" for i in range(1, 7)]
 
 # Extract LAB color data for each face using CubeFaceProcessor
 faces_data = []
 for path in list_of_image_paths:
     processor = CubeFaceProcessor(path)
     face_colors = processor.process_image()
+    cv2.imshow("Img", cv2.drawContours(processor.resized, processor.sorted_contours, -1, (0, 0, 255), 2))
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
     faces_data.append(face_colors)
 faces_data = np.array(faces_data, dtype=np.uint8)
 
@@ -54,3 +61,4 @@ cube_string = classifier.classify(faces_data)
 for i, face in enumerate(CubeClassifier.face_letters):
     face_stickers = cube_string[i*9:(i+1)*9]
     print(f"{face}: {face_stickers}")
+ 

@@ -11,13 +11,6 @@ class CubeFaceProcessor:
         self.mean_lab_values = []
 
     @staticmethod
-    def hsv_to_lab(hsv):
-        hsv_reshaped = np.uint8([[hsv]])
-        bgr = cv2.cvtColor(hsv_reshaped, cv2.COLOR_HSV2BGR)
-        lab = cv2.cvtColor(bgr, cv2.COLOR_BGR2LAB)
-        return lab[0, 0]
-
-    @staticmethod
     def contour_center(contour):
         M = cv2.moments(contour)
         if M["m00"] == 0:
@@ -86,9 +79,18 @@ class CubeFaceProcessor:
             mask = np.zeros(self.resized.shape[:2], dtype=np.uint8)
             cv2.drawContours(mask, [contour], -1, 255, -1)
             mean_bgr = cv2.mean(self.resized, mask=mask)[:3]
-            mean_hsv = cv2.cvtColor(np.uint8([[mean_bgr]]), cv2.COLOR_BGR2HSV)[0][0]
-            mean_lab = self.hsv_to_lab(mean_hsv)
-            self.mean_lab_values.append(mean_lab)
+            # mean_hsv = cv2.cvtColor(np.uint8([[mean_bgr]]), cv2.COLOR_BGR2HSV)[0][0]
+            mean_lab = cv2.cvtColor(np.uint8([[mean_bgr]]), cv2.COLOR_BGR2LAB)[0][0]
+            # Convert to signed type first to avoid overflow
+            lab = mean_lab.astype(np.int16)
+
+            # Unscale channels
+            L_true = lab[0] * 100 / 255.0
+            A_true = lab[1] - 128
+            B_true = lab[2] - 128
+
+            true_lab = np.array([L_true, A_true, B_true], dtype=np.float32)
+            self.mean_lab_values.append(true_lab)
 
     def process_image(self):
         dilated = self.read_and_preprocess()
@@ -99,12 +101,16 @@ class CubeFaceProcessor:
 
 
 # Example usage:
-list_of_image_paths = [f"Media/batch{i}.jpg" for i in range(1, 7)]
-faces_data = []
-for path in list_of_image_paths:
-    processor = CubeFaceProcessor(path)
-    face_colors = processor.process_image()
-    faces_data.append(face_colors)
+if __name__ == "__main__":
+    list_of_image_paths = [f"Media/batch{i}.jpg" for i in range(1, 7)]
+    faces_data = []
+    for path in list_of_image_paths:
+        processor = CubeFaceProcessor(path)
+        face_colors = processor.process_image()
+        # cv2.imshow("Img", cv2.drawContours(processor.resized, processor.sorted_contours, -1, (0, 0, 255), 2))
+        # cv2.waitKey(0)
+        # cv2.destroyAllWindows()
+        faces_data.append(face_colors)
 
-faces_data = np.array(faces_data, dtype=np.uint8)
-# print(faces_data)
+    faces_data = np.array(faces_data, dtype=np.int16)
+    print(faces_data)
