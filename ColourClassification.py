@@ -89,6 +89,53 @@ class CubeClassifier:
         return delta_E
 
 
+class CubeVisualiser:
+    """
+    Draws classification results on each detected sticker on the cube face image.
+    """
+
+    def __init__(self, image, contours, labels):
+        """
+        image: BGR image (already resized)
+        contours: list of 9 contours in 3×3 grid order
+        labels: 9-character string for the current face (e.g., 'RRRWGGGBY')
+        """
+        self.image = image.copy()
+        self.contours = contours
+        self.labels = labels
+
+    def draw(self):
+        """
+        Returns a new image with labels drawn at the center of each sticker contour.
+        """
+        for i, contour in enumerate(self.contours):
+            M = cv2.moments(contour)
+            if M["m00"] == 0:
+                continue
+            cx = int(M["m10"] / M["m00"])
+            cy = int(M["m01"] / M["m00"])
+            label = self.labels[i]
+            cv2.putText(
+                self.image,
+                label,
+                (cx - 10, cy + 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1.2,
+                (0, 0, 255),
+                2,
+                cv2.LINE_AA
+            )
+        return self.image
+
+    def show(self, window_name="Visualised Cube Face"):
+        """
+        Displays the labeled image in a window.
+        """
+        cv2.imshow(window_name, self.draw())
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
+
 # USAGE
 list_of_image_paths = [f"Media/batch{i}.jpg" for i in range(1, 7)]
 
@@ -97,9 +144,6 @@ faces_data = []
 for path in list_of_image_paths:
     processor = CubeFaceProcessor(path)
     face_colors = processor.process_image()
-    # cv2.imshow("Img", cv2.drawContours(processor.resized, processor.sorted_contours, -1, (0, 0, 255), 2))
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows()
     faces_data.append(face_colors)
 faces_data = np.array(faces_data, dtype=np.int16)
 
@@ -107,8 +151,11 @@ faces_data = np.array(faces_data, dtype=np.int16)
 classifier = CubeClassifier()
 cube_string = classifier.classify(faces_data)
 
-# Print cube string per face
-for i, face in enumerate(CubeClassifier.face_letters):
-    face_stickers = cube_string[i*9:(i+1)*9]
-    print(f"{face}: {face_stickers}")
+for i, path in enumerate(list_of_image_paths):
+    processor = CubeFaceProcessor(path)
+    processor.process_image()
+    face_labels = cube_string[i*9:(i+1)*9]
+    visualiser = CubeVisualiser(processor.resized, processor.sorted_contours, face_labels)
+    visualiser.show(f"Face {i}")
+
  
