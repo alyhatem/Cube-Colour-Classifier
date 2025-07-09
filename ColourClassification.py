@@ -137,7 +137,7 @@ class CubeVisualiser:
 
 
 # USAGE
-list_of_image_paths = [f"Media/batch{i}.jpg" for i in range(1, 7)]
+list_of_image_paths = [f"Media/3batch_{i}.jpg" for i in range(1, 7)]
 
 # Extract LAB color data for each face using CubeFaceProcessor
 faces_data = []

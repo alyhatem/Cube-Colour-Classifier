@@ -8,6 +8,7 @@ class CubeFaceProcessor:
         self.resized = None
         self.square_contours = []
         self.sorted_contours = []
+        self.rejected_contours = []
         self.mean_lab_values = []
 
     @staticmethod
@@ -49,9 +50,70 @@ class CubeFaceProcessor:
             if 0.8 < aspect_ratio < 1.2 and 1000 < area < 10000:
                 box = cv2.boxPoints(rect).astype(int)
                 self.square_contours.append(box)
+            else:
+                box = cv2.boxPoints(rect).astype(int)
+                self.rejected_contours.append(box)
 
         if not self.square_contours:
             raise ValueError(f"No valid contours detected in image: {self.image_path}")
+        
+    def recover_missing_contours(self):
+        if len(self.sorted_contours) >= 9:
+            return
+
+        accepted_centers = [self.contour_center(c) for c in self.sorted_contours]
+        if len(accepted_centers) < 4:
+            return
+
+        accepted_centers = np.array(accepted_centers)
+        min_x, max_x = accepted_centers[:, 0].min(), accepted_centers[:, 0].max()
+        min_y, max_y = accepted_centers[:, 1].min(), accepted_centers[:, 1].max()
+
+        step_x = (max_x - min_x) / 2
+        step_y = (max_y - min_y) / 2
+
+        grid_centers = []
+        for i in range(3):
+            for j in range(3):
+                grid_centers.append(np.array([min_x + j * step_x, min_y + i * step_y]))
+
+        threshold = 0.6 * min(step_x, step_y)
+
+        # Find missing slots
+        missing_slots = []
+        for g in grid_centers:
+            if all(np.linalg.norm(g - a) > threshold for a in accepted_centers):
+                missing_slots.append(g)
+
+        # Try to match rejected contours
+        new_candidates = []
+        for c in self.rejected_contours:
+            center = self.contour_center(c)
+            for m in missing_slots:
+                if np.linalg.norm(center - m) < threshold:
+                    approx = cv2.approxPolyDP(c, 0.04 * cv2.arcLength(c, True), True)
+                    if len(approx) >= 4:
+                        new_candidates.append((m, c))
+                        break
+
+        # Keep closest one per missing slot
+        added = []
+        for m in missing_slots:
+            candidates = [(np.linalg.norm(self.contour_center(c) - m), c)
+                          for gm, c in new_candidates if np.allclose(gm, m)]
+            if candidates:
+                _, best = min(candidates, key=lambda x: x[0])
+                self.sorted_contours.append(best)
+                added.append(best)
+
+        # Re-sort the new list
+        contour_data = [(c, self.contour_center(c)) for c in self.sorted_contours]
+        contour_data.sort(key=lambda x: x[1][1])
+        self.sorted_contours.clear()
+        for i in range(0, len(contour_data), 3):
+            row = contour_data[i:i+3]
+            row.sort(key=lambda x: x[1][0])
+            self.sorted_contours.extend([c for c, _ in row])
 
     def select_and_sort_contours(self):
         centers = [
@@ -80,6 +142,7 @@ class CubeFaceProcessor:
             row = contour_data[i:i+3]
             row.sort(key=lambda x: x[1][0])  # sort by X
             self.sorted_contours.extend([c for c, _ in row])
+        self.recover_missing_contours()
 
     def compute_colors(self):
         self.mean_lab_values.clear()
@@ -110,14 +173,14 @@ class CubeFaceProcessor:
 
 # Example usage:
 if __name__ == "__main__":
-    list_of_image_paths = [f"Media/batch{i}.jpg" for i in range(1, 7)]
+    list_of_image_paths = [f"Media/2batch_{i}.jpg" for i in range(1, 7)]
     faces_data = []
     for path in list_of_image_paths:
         processor = CubeFaceProcessor(path)
         face_colors = processor.process_image()
-        # cv2.imshow("Img", cv2.drawContours(processor.resized, processor.sorted_contours, -1, (0, 0, 255), 2))
-        # cv2.waitKey(0)
-        # cv2.destroyAllWindows()
+        cv2.imshow("Img", cv2.drawContours(processor.resized, processor.sorted_contours, -1, (0, 0, 255), 2))
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
         faces_data.append(face_colors)
 
     faces_data = np.array(faces_data, dtype=np.int16)
